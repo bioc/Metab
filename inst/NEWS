@@ -1,0 +1,22 @@
+CHANGES IN VERSION 0.99
+-----------------------
+
+ o Function clean.fix renamed to MetReport
+
+ o The function raw.peaks has been removed.
+
+ o Improved speed and error messages.
+
+ o MetReport is now able to extract directly the 
+   area and/or the base peak of an AMDIS report.
+
+ o The new function MetReportNames allows users to 
+   extract sample's abundances from an AMDIS report 
+   based only in sample's names.
+
+ o The new function buildLib allows users to convert an 
+   AMDIS library to a csv file in the format required by 
+   Metab.
+
+ o Function Htest allows users to adjust p-values for multiple comparisons.
+

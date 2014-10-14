@@ -1,0 +1,299 @@
+%
+% NOTE -- ONLY EDIT THE .Rnw FILE!!!  The .tex file is
+% likely to be overwritten.
+%
+%\VignetteIndexEntry{Applying Metab}
+%\VignetteKeywords{preprocess, analysis}
+%\VignettePackage{Metab}
+\documentclass[12pt]{article}
+
+\usepackage{hyper}
+
+\newcommand{\Robject}[1]{{\texttt{#1}}}
+\newcommand{\Rfunction}[1]{{\texttt{#1}}}
+\newcommand{\Rpackage}[1]{{\textit{#1}}}
+\newcommand{\Rclass}[1]{{\textit{#1}}}
+\newcommand{\Rmethod}[1]{{\textit{#1}}}
+\newcommand{\Rfunarg}[1]{{\textit{#1}}}
+
+\textwidth=6.2in
+\textheight=8.5in
+%\parskip=.3cm
+\oddsidemargin=.1in
+\evensidemargin=.1in
+\headheight=-.3in
+
+\begin{document}
+\title{Applying Metab}
+\author{Raphael Aggio}
+\maketitle
+
+\section*{Introduction}
+This document describes how to use the function included in the R package Metab.
+
+\section{Requirements}
+Metab requires 3 packages: xcms, svDialogs and pander. You can install these packages straight from www.bioconductor.org.
+
+\section{Why should I use Metab?}
+
+Metab is an R package for processing metabolomics data previously analysed by the Automated Mass Spectral Deconvolution and Identification System (AMDIS). AMDIS can be found at: http://chemdata.nist.gov/mass-spc/amdis/downloads/. AMDIS is one of the most used software for deconvoluting and identifying metabolites analysed by Gas Chromatography - Mass Spectrometry (GC-MS). It is excellent in deconvoluting chromatograms and identifying metabolites based on a spectral library, which is a list of metabolites with their respective mass spectrum and their associated retention times. Although AMDIS is widely and successfully applied to chemistry and many other fields, it shows some limitations when applied to biological studies. First, it generates results in a single spreadsheet per sample, which means that one must manually merge the results provided by AMDIS in a unique spreadsheet for performing further comparisons and statistical analysis, for example, comparing the abundances of metabolites across experimental conditions. AMDIS also allows users to generate a single report containing the results for a batch of samples. However, this report contains the results of samples placed on top of each other, which also requires extensive manual process before statistical analysis. In addition, AMDIS shows some limitations when quantifying metabolites. It quantifies metabolites by calculating the area (Area) under their respective peaks or by calculating the abundance of the ion mass fragment (Base.Peak) used as model to deconvolute the peak associated with each specific metabolite. As the area of a peak may be influenced by coelution of different metabolites, the abundance of the most abundant ion mass fragment is commonly used for quantifying metabolites in biological samples. However, AMDIS may use different ion mass fragments for quantifying the same metabolite across samples, which indicates that using AMDIS results one is not comparing the same variable across experimental conditions. Finally, according to the configurations used when applying AMDIS, it may report more than one metabolite identified for the same retention time. Therefore, AMDIS data requires manual inspection to define the correct metabolite to be assigned to each retention time.
+
+Metab solves AMDIS limitations by selecting the most probable metabolite associated to each retention time, by correcting the Base.Peak values calculated by AMDIS and by combining results in a single spreadsheet and in a format that suits further data processing. In order to select the most probable metabolite associated to each retention time, Metab considers the number of question marks reported by AMDIS, which indicates its certainty in identification, and the difference between expected and observed retention times associated with each metabolite. For correcting abundances calculated by AMDIS, Metab makes use of an ion library containing the ion mass fragment to be used as reference when quantifying each metabolite present in the mass spectral library applied. For this, Metab collects from the AMDIS report the scan used to identify each metabolite and collects from the raw data (CDF files) the intensities of their reference ion mass fragments defined in the ion library. In addition, Metab contains functions to simply reformat AMDIS reports into a single spreadsheet containing identified metabolites and their Areas or Base.Peaks calculated by AMDIS in each analysed sample. Therefore, Metab can be used to quickly process AMDIS reports correcting or not metabolite abundances previously calculated by AMDIS. Below we demonstrate how to use each function in Metab.
+
+\newpage
+\section{How to process AMDIS results using \Rfunction{MetReport}}
+
+\Rfunction{MetReport} automatically process ADMIS results keeping only one compound for each retention time. In addition, \Rfunction{MetReport} can be used to recalculate peak intensities by assigning a fixed mass fragment for each compound across samples, or to return the Area or Base.Peaks previously calculated by AMDIS. \Rfunction{MetReport} may be applied to a single GC-MS file or a batch of GC-MS files. 
+
+When applied to a single file and recalculating metabolite abundances, \Rfunction{MetReport} requires:
+
+\begin{enumerate}
+
+\item the GC-MS sample file in CDF format. The software used by most GC-MSs include an application to convert GC-MS files to CDF format (also known as AIA format). If not available in the GC-MS software used, there are commercial software available at the market.
+
+\item Amdis report in batch mode. It is a text file containing the results for a batch of samples and can be obtained in AMDIS through: \texttt{File > Batch Job > Create and Run Job...}. Select the Analysis Type to be used, generally \texttt{Simple}, click on \texttt{Generate Report} and \texttt{Report all hits}. \texttt{Click on Add..}, select the files to be analysed, click on \texttt{Save As...}, select the folder where the report will be generated and a name for this report (any name you desire). Finally, click on \texttt{Run}. A new .TXT file with the name specified will be generated in the folder specified.
+
+Below you can see examples of an AMDIS report:
+
+{\footnotesize
+<<LoadAMDISReport>>=
+library(Metab)
+data(exampleAMDISReport)
+print(head(exampleAMDISReport, 25))
+@
+}
+
+\item ion library in the specific format required by Metab. The ion library is a data frame containing the name and the reference ion mass fragment to quantify each metabolite present in the mass spectral library used by AMDIS when generating the batch report. To facilitate the process, MetReport accepts the .msl file used by AMDIS. An AMDIS library is stored in two files, a file with extension .CID and a file with extension .msl. Metab requires only the .msl file.
+
+Below you can see examples of an ion library converted from an AMDIS library: 
+
+
+{\footnotesize
+<<LoadIonLibrary>>=
+data(exampleMSLfile)
+print(head(exampleMSLfile, 29))
+testLib <- buildLib(exampleMSLfile, save = FALSE, verbose = FALSE)
+print(testLib)
+@
+}
+
+\end{enumerate}
+
+When all the requirements described above are ready and available, MetReport can be applied. If an essential argument is missing, a dialog box will pop up allowing the user to point and click on the missing file. Here is an example of \Rfunction{MetReport} applied to a single file and recalculating metabolite abundances. We use a test file distributed with the package, unzip it and store the file name in the \texttt{testfile} variable. This file will also be used in the subsequent examples. 
+
+{\footnotesize
+<<RunMetReport>>=
+###### Load exampleAMDISReport ######
+data(exampleAMDISReport)
+###### Load exampleIonLib ###########
+data(exampleIonLib)
+###### Analyse a single file ########
+testfile <- unzip(system.file("extdata/130513_REF_SOL2_2_50_50_1.CDF.zip", package = "Metab"))
+test <- MetReport(inputData = testfile,
+                  singleFile = TRUE, AmdisReport = exampleAMDISReport,
+                  ionLib = exampleIonLib, abundance = "recalculate",
+                  TimeWindow = 0.5, save = FALSE)
+###### Show results #################
+print(test)
+@
+}
+
+Note that the first line of the resulting data.frame is used to represent sample meta-data (for example replicates). 
+
+The argument "abundance" defines the way metabolite abundances will be reported. If abundance = "recalculated", the abundances of metabolites will be corrected by fixing a single mass fragment as reference. If abundance = "Area", the area associated with each compound will be extracted from the AMDIS report indicated by "AmdisReport". And finally, if abundance = "Base.Peak", the Base.Peak associated with each compound will be extracted from the AMDIS report. Below you can find an example when extracting the area:
+
+{\footnotesize
+<<RunMetReportArea>>=
+###### Load exampleAMDISReport ######
+data(exampleAMDISReport)
+###### Analyse a single file ########
+test <- MetReport(inputData = testfile,
+                  singleFile = TRUE, AmdisReport = exampleAMDISReport,
+                  abundance = "Area", TimeWindow = 0.5, save = FALSE)
+###### Show results #################
+print(test)
+@
+} 
+
+Note that in this case the ion library is not required, as the abundances of metabolites will be extracted directly from the AMDIS report.
+
+
+When applied to a batch of GC-MS files, \Rfunction{MetReport} can be used to automatically detect the name of experimental conditions under study. For this, GC-MS files in CDF format must be organised in subfolders according to their experimental condition, as follows:
+
+
+------------------------\\
+Experiment1\\
+------Condition1\\
+-----------Sample1.cdf\\
+-----------Sample2.cdf\\
+-----------Sample3.cdf\\
+------Condition2\\
+-----------Sample1.cdf\\
+-----------Sample2.cdf\\
+-----------Sample3.cdf\\
+------Condition3\\
+-----------Sample1.cdf\\
+-----------Sample2.cdf\\
+-----------Sample3.cdf\\
+--------------------------\
+
+
+The folder Experiment1 is the main folder containing one subfolder for each experimental condition. Each subfolder contains the CDF files associated with this specific experimental condition. Alternatively, all the CDF files can be placed in a single folder and MetReport will analyse every sample as belonging to the same experimental condition.
+
+Below you can see an example of MetReport applied to a batch of samples:
+
+{\footnotesize
+<<ExampleForMetReport, eval=FALSE>>=
+MetReport(
+	dataFolder = "/Users/ThePathToTheMainFolder/",
+	AmdisReport = "/Users/MyAMDISreport.TXT",
+	ionLib = "/Users/MyIonLibrary.csv",
+	save = TRUE,
+	output = "metabData",
+	TimeWindow = 2.5,
+	Remove = c("Ethanol", "Pyridine"))
+@
+}
+
+\vspace{5pt}
+As a result, MetReport generates a data frame containing the metabolites identified in the first column and their abundances in the different samples analysed in the following columns. See below an example:
+
+    
+{\footnotesize
+<<LoadReportMetReport>>=
+data(exampleMetReport)
+print(exampleMetReport)
+@
+}
+
+\newpage
+\section{What if I have the AMDIS report but not the CDF files?}
+The function MetReportNames is used to process an AMDIS report by choosing a single compound per RT and extracting the AREA or the BASE.PEAK reported by AMDIS for each compound.
+MetReportNames only requires the names of the files or samples to be extracted from the AMDIS report and the AMDIS report in batch mode. It is applied as follows:
+
+{\footnotesize
+<<ExampleMetReportNames>>=
+### Load the example of AMDIS report #####
+data(exampleAMDISReport)
+### Extract the Area of compounds in samples 
+# 130513_REF_SOL2_2_100_1 and 130513_REF_SOL2_2_100_2 ##
+test <- MetReportNames(
+	c("130513_REF_SOL2_2_100_1", "130513_REF_SOL2_2_100_2"), 
+	exampleAMDISReport, 
+	save = FALSE, 
+	TimeWindow = 0.5, 
+	base.peak = FALSE)
+print(test)
+@
+}
+
+\newpage
+\section{Normalisations and further analysis: \Rfunction{removeFalsePositives}, \Rfunction{normalizeByInternalStandard}, \Rfunction{normalizeByBiomass}, \Rfunction{Htest}}
+Normalisations and statistical analysis are commonly applied to metabolomics data. Therefore, Metab contains few functions to facilitate these processes. Every function described in this section uses an input data in the same format as the results generated by the previously described functions. In the first row, it contains the names of the experimental conditions associated with each sample. 
+\vspace{5pt}
+Removing metabolites considered false positives:
+\vspace{5pt}
+In some metabolomics experiments it is ideal to consider only those metabolites detected in a minimum proportion of the samples analysed for a specific experimental condition. For example, if an experimental condition contains 6 sample, or replicates, one may consider that metabolites present in only 2 samples are potential miss identifications or contaminations. Thus, they must be removed before further analysis. The function \Rfunction{removeFalsePositives} uses a data set generated by \Rfunction{MetReport}, \Rfunction{MetReportArea} or \Rfunction{MetReportBasePeak} to automatically remove these compounds. \Rfunction{removeFalsePositives} only requires the data frame to be processed, which can be a vector in R or a CSV file, and the percentage of samples to be used as cut off. For example:
+
+{\footnotesize
+<<RemovingFalsePositives>>=
+### Load the inputData ###
+data(exampleMetReport)
+### Normalize ####
+normalizedData <- removeFalsePositives(exampleMetReport, truePercentage = 40, save = FALSE)
+##################
+# The abundances of compound Zylene3 will be replaced by NA in samples from experimental 
+#condition 50ul, as it is present in less than 40 per cent of the samples from this 
+#experimental condition. 
+### Show results ####
+print(normalizedData)
+@ 
+}
+
+\vspace{5pt}
+Normalising by internal standard:
+\vspace{5pt}
+The use of internal standards is a common practice in metabolomics. In order to normalise a data set by a specific internal standard, the abundance or intensity of each metabolite must be divided by the abundance of the internal standard at the sample where each metabolite was detected. The function \Rfunction{normalizeByInternalStandard} normalises a data set generated by Metab functions according to an internal standard defined by the user. For example:
+
+{\footnotesize
+<<ExampleIST>>=
+### Load the inputData ###
+data(exampleMetReport)
+### Normalize ####
+normalizedData <- normalizeByInternalStandard(
+	exampleMetReport, 
+	internalStandard = "Acetone", 
+	save = FALSE)
+### Show results ####
+print(normalizedData)
+@
+}
+
+\vspace{5pt}
+Normalising by biomass:
+\vspace{5pt}
+Normalisation by biomass (e.g. number of cells or O.D.) is also a common practice in metabolomics. In order to normalise a data set by the biomass associated with each sample, the abundance or intensity of each metabolite must be divided by the biomass associated with the sample where each metabolite was detected. The function \Rfunction{normalizeByBiomass} normalises a data set generated by Metab functions according to a list of biomasses defined by the user. For this, the user must provide a data frame or a CSV file containing the name of each sample in the first column and their respective biomass in the second column. See below an example of the data frame specifying biomasses:
+
+{\footnotesize
+<<LoadBiomasses>>=
+data(exampleBiomass)
+print(exampleBiomass)
+@
+}
+\vspace{5pt}
+For example:\\
+
+{\footnotesize
+<<ExampleBiomassNorm>>=
+### Load the inputData ###
+data(exampleMetReport)
+### Load the list of biomasses ### 
+data(exampleBiomass)
+### Normalize ####
+normalizedData <- normalizeByBiomass(
+	exampleMetReport, 
+	biomass = exampleBiomass, 
+	save = FALSE)
+### Show results ###
+print(normalizedData)
+@
+}
+
+\vspace{5pt}
+Performing ANOVA or t-Test:
+\vspace{5pt}
+The statistical tests ANOVA and t-Test are widely applied in metabolomics studies. The function \Rfunction{Htest} can be used to quickly calculate the p-values associated with each metabolite when performing ANOVA or t-Test. For example:\\
+
+{\footnotesize
+<<ExampleForHtest>>=
+### Load the inputData ###
+	data(exampleMetReport)
+### Perform t-test ####
+	tTestResults <- htest(
+		exampleMetReport, 
+		signif.level = 0.05, 
+		StatTest = "T", 
+		save = FALSE
+	)
+### Show results ###
+	print(tTestResults)
+### Perform ANOVA ####
+	AnovaResults <- htest(
+		exampleMetReport, 
+		signif.level = 0.05, 
+		StatTest = "Anova", 
+		save = FALSE
+	)
+### Show results ###
+	print(AnovaResults)
+@
+}
+
+\newpage
+\section*{Session information}
+
+<<sessioninfo>>=
+print(sessionInfo(), locale = FALSE)
+@
+
+\end{document}
