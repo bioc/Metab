@@ -128,9 +128,15 @@ function (inputData, biomass, save = TRUE, folder, output = "norm_bio")
     }
     if (length(biomass) == 0){
     	for (i in 2:ncol(inputData)) {
-        sample.name <- names(inputData)[i]
-        biomass <- dlgInput(paste("Biomass for sample ", sample.name, ":", sep = ""))$res
-        inputData[i] <- as.numeric(inputData[, i])/as.numeric(biomass)
+        	sample.name <- names(inputData)[i]
+			biomass <- dlgInput(paste("Biomass for sample ", sample.name, ":", sep = ""))$res
+			if(!length(biomass)){
+				stop("The process was canceled by the user.")
+			} else {
+				biomass <- unlist(strsplit(biomass, "returned:", fixed = TRUE))
+				biomass <- biomass[length(biomass)]
+			}
+        	inputData[i] <- as.numeric(inputData[, i])/as.numeric(biomass)
     	}
     } else {
 	for (i in 2:ncol(inputData)) {
