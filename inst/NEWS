@@ -20,3 +20,7 @@ CHANGES IN VERSION 0.99
 
  o Function Htest allows users to adjust p-values for multiple comparisons.
 
+CHANGES IN VERSION 1.5.1
+------------------------
+
+ o Fixed bug in htest and fixed normalizeByBiomass in order to manually input biomasses.
